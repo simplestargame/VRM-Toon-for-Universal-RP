@@ -1,5 +1,7 @@
 # VRM Toon Shader Graph for Universal RP
 
+[VRM - 3D Avatar File Format for VR -](https://vrm.dev/en/)
+
 # Requirements
 Unity 2019.3.0b6  
 Universal RP template project  
@@ -7,7 +9,7 @@ Universal RP template project
  - Shader Graph 7.1.2
 
 # Usage of this Toon Shader  
-1. Craete Universaal RP Template project or Open this project and set Universal Render Assets to ProjectSettings > Graphics
+1. Craete Universaal RP Template project or Open this project
 1. Update Universal RP versions to v7.1.2 in Menu Window > Package Manager
 1. Move UnityProjectDir/Library/PackageCache to UnityProjectDir/Packages of ...  
   1. com.unity.render-pipelines.core@7.1.2
@@ -31,7 +33,13 @@ Universal RP template project
  ```cs
  var shaderName = "Shader Graphs/ToonShaderGraph";//item.shader;
  ```
+Load Result in SimpleViewer scene of [UniVRM Sample package](https://github.com/vrm-c/UniVRM).    
+![warabeda](README/ShaderResult-2019-10-13134347.png)
 
-# Result of My Universal RP Toon Shader
-VRoid SDK Load Result Image.  
-![warabeda](README/universalRP_Toon.jpg)
+# Shader Graph Node Details
+Take care <font color="Red">red underline</font> settings.
+
+LeftSide  
+![leftGraph](README/ShaderGraph1_2019-10-13135511.png)
+RightSide  
+![RightGraph](README/ShaderGraph_2019-10-13135712.png)

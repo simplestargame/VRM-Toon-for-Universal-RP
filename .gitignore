@@ -21,6 +21,8 @@
 /[Aa]ssets/Settings*
 /[Aa]ssets/TutorialInfo*
 /[Aa]ssets/VRoidSDK*
+/[Aa]ssets/VRM*
+/[Aa]ssets/StreamingAssets*
 
 /[Pp]ackages/com.unity*
 
