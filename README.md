@@ -7,6 +7,8 @@ Universal RP template project
  - Shader Graph 7.1.2
 
 # Usage of this Toon Shader  
+1. Craete Universaal RP Template project or Open this project and set Universal Render Assets to ProjectSettings > Graphics
+1. Update Universal RP versions to v7.1.2 in Menu Window > Package Manager
 1. Move UnityProjectDir/Library/PackageCache to UnityProjectDir/Packages of ...  
   1. com.unity.render-pipelines.core@7.1.2
   1. com.unity.render-pipelines.universal@7.1.2
