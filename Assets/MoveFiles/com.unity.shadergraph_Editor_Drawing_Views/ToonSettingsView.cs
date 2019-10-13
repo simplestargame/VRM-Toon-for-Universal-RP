@@ -1,4 +1,7 @@
-﻿using System;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
 using UnityEditor.Graphing.Util;
 using UnityEditor.ShaderGraph.Drawing.Controls;
 using UnityEditor.UIElements;
@@ -16,40 +19,40 @@ namespace UnityEditor.ShaderGraph.Drawing
             PropertySheet ps = new PropertySheet();
 
             ps.Add(new PropertyRow(new Label("Workflow")), (row) =>
-            {
-                row.Add(new EnumField(ToonMasterNode.Model.Specular), (field) =>
                 {
-                    field.value = m_Node.model;
-                    field.RegisterValueChangedCallback(ChangeWorkFlow);
+                    row.Add(new EnumField(ToonMasterNode.Model.Metallic), (field) =>
+                    {
+                        field.value = m_Node.model;
+                        field.RegisterValueChangedCallback(ChangeWorkFlow);
+                    });
                 });
-            });
 
             ps.Add(new PropertyRow(new Label("Surface")), (row) =>
-            {
-                row.Add(new EnumField(SurfaceType.Opaque), (field) =>
                 {
-                    field.value = m_Node.surfaceType;
-                    field.RegisterValueChangedCallback(ChangeSurface);
+                    row.Add(new EnumField(SurfaceType.Opaque), (field) =>
+                    {
+                        field.value = m_Node.surfaceType;
+                        field.RegisterValueChangedCallback(ChangeSurface);
+                    });
                 });
-            });
 
             ps.Add(new PropertyRow(new Label("Blend")), (row) =>
-            {
-                row.Add(new EnumField(AlphaMode.Additive), (field) =>
                 {
-                    field.value = m_Node.alphaMode;
-                    field.RegisterValueChangedCallback(ChangeAlphaMode);
+                    row.Add(new EnumField(AlphaMode.Additive), (field) =>
+                    {
+                        field.value = m_Node.alphaMode;
+                        field.RegisterValueChangedCallback(ChangeAlphaMode);
+                    });
                 });
-            });
 
             ps.Add(new PropertyRow(new Label("Two Sided")), (row) =>
-            {
-                row.Add(new Toggle(), (toggle) =>
                 {
-                    toggle.value = m_Node.twoSided.isOn;
-                    toggle.OnToggleChanged(ChangeTwoSided);
+                    row.Add(new Toggle(), (toggle) =>
+                    {
+                        toggle.value = m_Node.twoSided.isOn;
+                        toggle.OnToggleChanged(ChangeTwoSided);
+                    });
                 });
-            });
 
             Add(ps);
         }

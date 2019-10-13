@@ -1,4 +1,7 @@
-﻿namespace UnityEditor.ShaderGraph
+﻿using System;
+using UnityEngine;
+
+namespace UnityEditor.ShaderGraph
 {
     class ToonMasterGUI : ShaderGUI
     {

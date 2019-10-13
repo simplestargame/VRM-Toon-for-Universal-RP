@@ -1,26 +1,35 @@
 # VRM Toon Shader Graph for Universal RP
 
 # Requirements
-Unity 2019.3.0b1  
+Unity 2019.3.0b6  
 Universal RP template project  
- - Universal RP 7.0.1
- - Shader Graph 7.0.1
+ - Universal RP 7.1.2
+ - Shader Graph 7.1.2
 
 # Usage of this Toon Shader  
-1. Move PackageCache to Packages of ...  
-  1. Shader Graph
-  1. Universal RP
-1. Move this Project Assets
-  1. MoveFiles child folder names indicates move destination.
-1. Use valid ToonShaderGraph.shadergraph for your game!
+1. Move UnityProjectDir/Library/PackageCache to UnityProjectDir/Packages of ...  
+  1. com.unity.render-pipelines.core@7.1.2
+  1. com.unity.render-pipelines.universal@7.1.2
+  1. com.unity.shadergraph@7.1.2  
 
-# Example
-1. Find VRMMaterialImporter if you use UniVRM package.  
- edit next line.
+  Now, you can see <font color="Red">pen icon</font> in Menu Window > Package Manager  
+  ![packageManager](README/PackageManager2019-10-13120125.png)  
+  Ready to edit package shader files.
+
+1. Move my repository scripts and shader files  
+  UnityProjectDir/Assets/MoveFiles child folders name indicates move destination folder paths.
+
+1. Use "Shader Graphs/ToonShaderGraph" for your game!
+  1. The file location is VRM-Toon-for-Universal-RP\Assets\UniToon\ToonShaderGraph.shadergraph
+
+# Check Example VRM Scene
+
+1. Find VRMMaterialImporter if you use [UniVRM package](https://github.com/vrm-c/UniVRM)  
+  Edit a line as follows.
  ```cs
  var shaderName = "Shader Graphs/ToonShaderGraph";//item.shader;
  ```
 
-# Result
+# Result of My Universal RP Toon Shader
 VRoid SDK Load Result Image.  
 ![warabeda](README/universalRP_Toon.jpg)

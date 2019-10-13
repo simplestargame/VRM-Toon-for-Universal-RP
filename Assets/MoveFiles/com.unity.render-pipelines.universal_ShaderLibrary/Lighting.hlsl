@@ -45,15 +45,6 @@ struct Light
     half    shadowAttenuation;
 };
 
-int GetPerObjectLightIndex(int index)
-{
-    // The following code is more optimal than indexing unity_4LightIndices0.
-    // Conditional moves are branch free even on mali-400
-    half2 lightIndex2 = (index < 2.0h) ? unity_LightIndices[0].xy : unity_LightIndices[0].zw;
-    half i_rem = (index < 2.0h) ? index : index - 2.0h;
-    return (i_rem < 1.0h) ? lightIndex2.x : lightIndex2.y;
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 //                        Attenuation Functions                               /
 ///////////////////////////////////////////////////////////////////////////////
@@ -108,10 +99,12 @@ Light GetMainLight()
 {
     Light light;
     light.direction = _MainLightPosition.xyz;
+    // unity_LightData.z is 1 when not culled by the culling mask, otherwise 0.
     light.distanceAttenuation = unity_LightData.z;
-    #if defined(LIGHTMAP_ON)
-        light.distanceAttenuation *= unity_ProbesOcclusion.x;
-    #endif
+#if defined(LIGHTMAP_ON) || defined(_MIXED_LIGHTING_SUBTRACTIVE)
+    // unity_ProbesOcclusion.x is the mixed light probe occlusion data
+    light.distanceAttenuation *= unity_ProbesOcclusion.x;
+#endif
     light.shadowAttenuation = 1.0;
     light.color = _MainLightColor.rgb;
 
@@ -125,20 +118,27 @@ Light GetMainLight(float4 shadowCoord)
     return light;
 }
 
-Light GetAdditionalLight(int i, float3 positionWS)
+// Fills a light struct given a perObjectLightIndex
+Light GetAdditionalPerObjectLight(int perObjectLightIndex, float3 positionWS)
 {
-    int perObjectLightIndex = GetPerObjectLightIndex(i);
-
-    // The following code will turn into a branching madhouse on platforms that don't support
-    // dynamic indexing. Ideally we need to configure light data at a cluster of
-    // objects granularity level. We will only be able to do that when scriptable culling kicks in.
-    // TODO: Use StructuredBuffer on PC/Console and profile access speed on mobile that support it.
     // Abstraction over Light input constants
-    float3 lightPositionWS = _AdditionalLightsPosition[perObjectLightIndex].xyz;
+#if USE_STRUCTURED_BUFFER_FOR_LIGHT_DATA
+    float4 lightPositionWS = _AdditionalLightsBuffer[perObjectLightIndex].position;
+    half3 color = _AdditionalLightsBuffer[perObjectLightIndex].color.rgb;
+    half4 distanceAndSpotAttenuation = _AdditionalLightsBuffer[perObjectLightIndex].attenuation;
+    half4 spotDirection = _AdditionalLightsBuffer[perObjectLightIndex].spotDirection;
+    half4 lightOcclusionProbeInfo = _AdditionalLightsBuffer[perObjectLightIndex].occlusionProbeChannels;
+#else
+    float4 lightPositionWS = _AdditionalLightsPosition[perObjectLightIndex];
+    half3 color = _AdditionalLightsColor[perObjectLightIndex].rgb;
     half4 distanceAndSpotAttenuation = _AdditionalLightsAttenuation[perObjectLightIndex];
     half4 spotDirection = _AdditionalLightsSpotDir[perObjectLightIndex];
+    half4 lightOcclusionProbeInfo = _AdditionalLightsOcclusionProbes[perObjectLightIndex];
+#endif
 
-    float3 lightVector = lightPositionWS - positionWS;
+    // Directional lights store direction in lightPosition.xyz and have .w set to 0.0.
+    // This way the following code will work for both directional and punctual lights.
+    float3 lightVector = lightPositionWS.xyz - positionWS * lightPositionWS.w;
     float distanceSqr = max(dot(lightVector, lightVector), HALF_MIN);
 
     half3 lightDirection = half3(lightVector * rsqrt(distanceSqr));
@@ -148,14 +148,13 @@ Light GetAdditionalLight(int i, float3 positionWS)
     light.direction = lightDirection;
     light.distanceAttenuation = attenuation;
     light.shadowAttenuation = AdditionalLightRealtimeShadow(perObjectLightIndex, positionWS);
-    light.color = _AdditionalLightsColor[perObjectLightIndex].rgb;
+    light.color = color;
 
     // In case we're using light probes, we can sample the attenuation from the `unity_ProbesOcclusion`
-#if defined(LIGHTMAP_ON)
+#if defined(LIGHTMAP_ON) || defined(_MIXED_LIGHTING_SUBTRACTIVE)
     // First find the probe channel from the light.
     // Then sample `unity_ProbesOcclusion` for the baked occlusion.
     // If the light is not baked, the channel is -1, and we need to apply no occlusion.
-    half4 lightOcclusionProbeInfo = _AdditionalLightsOcclusionProbes[perObjectLightIndex];
 
     // probeChannel is the index in 'unity_ProbesOcclusion' that holds the proper occlusion value.
     int probeChannel = lightOcclusionProbeInfo.x;
@@ -168,6 +167,66 @@ Light GetAdditionalLight(int i, float3 positionWS)
 #endif
 
     return light;
+}
+
+uint GetPerObjectLightIndexOffset()
+{
+#if USE_STRUCTURED_BUFFER_FOR_LIGHT_DATA
+    return unity_LightData.x;
+#else
+    return 0;
+#endif
+}
+
+// Returns a per-object index given a loop index.
+// This abstract the underlying data implementation for storing lights/light indices
+int GetPerObjectLightIndex(uint index)
+{
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Structured Buffer Path                                                                   /
+//                                                                                          /
+// Lights and light indices are stored in StructuredBuffer. We can just index them.         /
+// Currently all non-mobile platforms take this path :(                                     /
+// There are limitation in mobile GPUs to use SSBO (performance / no vertex shader support) /
+/////////////////////////////////////////////////////////////////////////////////////////////
+#if USE_STRUCTURED_BUFFER_FOR_LIGHT_DATA
+    uint offset = unity_LightData.x;
+    return _AdditionalLightsIndices[offset + index];
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+// UBO path                                                                                 /
+//                                                                                          /
+// We store 8 light indices in float4 unity_LightIndices[2];                                /
+// Due to memory alignment unity doesn't support int[] or float[]                           /
+// Even trying to reinterpret cast the unity_LightIndices to float[] won't work             /
+// it will cast to float4[] and create extra register pressure. :(                          /
+/////////////////////////////////////////////////////////////////////////////////////////////
+#elif !defined(SHADER_API_GLES)
+    // since index is uint shader compiler will implement
+    // div & mod as bitfield ops (shift and mask).
+    
+    // TODO: Can we index a float4? Currently compiler is
+    // replacing unity_LightIndicesX[i] with a dp4 with identity matrix.
+    // u_xlat16_40 = dot(unity_LightIndices[int(u_xlatu13)], ImmCB_0_0_0[u_xlati1]);
+    // This increases both arithmetic and register pressure.
+    return unity_LightIndices[index / 4][index % 4];
+#else
+    // Fallback to GLES2. No bitfield magic here :(.
+    // We limit to 4 indices per object and only sample unity_4LightIndices0.
+    // Conditional moves are branch free even on mali-400
+    // small arithmetic cost but no extra register pressure from ImmCB_0_0_0 matrix.
+    half2 lightIndex2 = (index < 2.0h) ? unity_LightIndices[0].xy : unity_LightIndices[0].zw;
+    half i_rem = (index < 2.0h) ? index : index - 2.0h;
+    return (i_rem < 1.0h) ? lightIndex2.x : lightIndex2.y;
+#endif
+}
+
+// Fills a light struct given a loop i index. This will convert the i
+// index to a perObjectLightIndex
+Light GetAdditionalLight(uint i, float3 positionWS)
+{
+    int perObjectLightIndex = GetPerObjectLightIndex(i);
+    return GetAdditionalPerObjectLight(perObjectLightIndex, positionWS);
 }
 
 int GetAdditionalLightsCount()
@@ -238,7 +297,7 @@ inline void InitializeBRDFData(half3 albedo, half metallic, half3 specular, half
 
     outBRDFData.grazingTerm = saturate(smoothness + reflectivity);
     outBRDFData.perceptualRoughness = PerceptualSmoothnessToPerceptualRoughness(smoothness);
-    outBRDFData.roughness = PerceptualRoughnessToRoughness(outBRDFData.perceptualRoughness);
+    outBRDFData.roughness = max(PerceptualRoughnessToRoughness(outBRDFData.perceptualRoughness), HALF_MIN);
     outBRDFData.roughness2 = outBRDFData.roughness * outBRDFData.roughness;
 
     outBRDFData.normalizationTerm = outBRDFData.roughness * 4.0h + 2.0h;
@@ -489,10 +548,10 @@ half3 VertexLighting(float3 positionWS, half3 normalWS)
     half3 vertexLightColor = half3(0.0, 0.0, 0.0);
 
 #ifdef _ADDITIONAL_LIGHTS_VERTEX
-    int pixelLightCount = GetAdditionalLightsCount();
-    for (int i = 0; i < pixelLightCount; ++i)
+    uint lightsCount = GetAdditionalLightsCount();
+    for (uint lightIndex = 0u; lightIndex < lightsCount; ++lightIndex)
     {
-        Light light = GetAdditionalLight(i, positionWS);
+        Light light = GetAdditionalLight(lightIndex, positionWS);
         half3 lightColor = light.color * light.distanceAttenuation;
         vertexLightColor += LightingLambert(lightColor, light.direction, normalWS);
     }
@@ -518,10 +577,10 @@ half4 UniversalFragmentPBR(InputData inputData, half3 albedo, half metallic, hal
     color += LightingPhysicallyBased(brdfData, mainLight, inputData.normalWS, inputData.viewDirectionWS);
 
 #ifdef _ADDITIONAL_LIGHTS
-    int pixelLightCount = GetAdditionalLightsCount();
-    for (int i = 0; i < pixelLightCount; ++i)
+    uint pixelLightCount = GetAdditionalLightsCount();
+    for (uint lightIndex = 0u; lightIndex < pixelLightCount; ++lightIndex)
     {
-        Light light = GetAdditionalLight(i, inputData.positionWS);
+        Light light = GetAdditionalLight(lightIndex, inputData.positionWS);
         color += LightingPhysicallyBased(brdfData, light, inputData.normalWS, inputData.viewDirectionWS);
     }
 #endif
@@ -544,10 +603,10 @@ half4 UniversalFragmentBlinnPhong(InputData inputData, half3 diffuse, half4 spec
     half3 specularColor = LightingSpecular(attenuatedLightColor, mainLight.direction, inputData.normalWS, inputData.viewDirectionWS, specularGloss, smoothness);
 
 #ifdef _ADDITIONAL_LIGHTS
-    int pixelLightCount = GetAdditionalLightsCount();
-    for (int i = 0; i < pixelLightCount; ++i)
+    uint pixelLightCount = GetAdditionalLightsCount();
+    for (uint lightIndex = 0u; lightIndex < pixelLightCount; ++lightIndex)
     {
-        Light light = GetAdditionalLight(i, inputData.positionWS);
+        Light light = GetAdditionalLight(lightIndex, inputData.positionWS);
         half3 attenuatedLightColor = light.color * (light.distanceAttenuation * light.shadowAttenuation);
         diffuseColor += LightingLambert(attenuatedLightColor, light.direction, inputData.normalWS);
         specularColor += LightingSpecular(attenuatedLightColor, light.direction, inputData.normalWS, inputData.viewDirectionWS, specularGloss, smoothness);
@@ -608,12 +667,12 @@ SOFTWARE.
 
 half ToonyIntensity(half3 lightDir, half3 normal, half shadeShift, half shadeToony)
 {
-	half lightIntensity = dot(normal, lightDir);
+    half lightIntensity = dot(normal, lightDir);
     half maxIntensityThreshold = lerp(1, shadeShift, shadeToony);
     half minIntensityThreshold = shadeShift;
     const half EPS_COL = 0.00001;
     lightIntensity = saturate((lightIntensity - minIntensityThreshold) / max(EPS_COL, (maxIntensityThreshold - minIntensityThreshold)));
-	return lightIntensity;
+    return lightIntensity;
 }
 
 // following code can be taken from https://github.com/you-ri/LiliumToonGraph
@@ -641,53 +700,53 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-half4 LightweightFragmentToon(InputData inputData, half3 albedo, half3 shade, half metallic, half3 specular,
-    half smoothness, half occlusion, half3 emission, half alpha, half shadeShift, half shadeToony, half3 sphereAdd, half toonyLighting)
+half4 UniversalFragmentToon(InputData inputData, half3 albedo, half3 shade, half metallic, half3 specular,
+	half smoothness, half occlusion, half3 emission, half alpha, half shadeShift, half shadeToony, half3 sphereAdd, half toonyLighting)
 {
-    BRDFData brdfData;
-    InitializeBRDFData(albedo, metallic, specular, smoothness, alpha, brdfData);
+	BRDFData brdfData;
+	InitializeBRDFData(albedo, metallic, specular, smoothness, alpha, brdfData);
 
-    Light mainLight = GetMainLight(inputData.shadowCoord);
-    MixRealtimeAndBakedGI(mainLight, inputData.normalWS, inputData.bakedGI, half4(0, 0, 0, 0));
+	Light mainLight = GetMainLight(inputData.shadowCoord);
+	MixRealtimeAndBakedGI(mainLight, inputData.normalWS, inputData.bakedGI, half4(0, 0, 0, 0));
 
 	half lighing = ToonyIntensity(mainLight.direction, inputData.normalWS, shadeShift, shadeToony) * mainLight.shadowAttenuation;
-    half3 attenuatedLightColor = mainLight.color * mainLight.distanceAttenuation;
+	half3 attenuatedLightColor = mainLight.color * mainLight.distanceAttenuation;
 	half3 color = (inputData.bakedGI + attenuatedLightColor) * lerp(shade, albedo, lighing) * toonyLighting;
 
 #ifdef _ADDITIONAL_LIGHTS
-    int pixelLightCount = GetAdditionalLightsCount();
-    for (int i = 0; i < pixelLightCount; ++i)
-    {
-        Light light = GetAdditionalLight(i, inputData.positionWS);
+	uint pixelLightCount = GetAdditionalLightsCount();
+	for (uint lightIndex = 0u; lightIndex < pixelLightCount; ++lightIndex)
+	{
+		Light light = GetAdditionalLight(lightIndex, inputData.positionWS);
 		color += LightingPhysicallyBased(brdfData, light, inputData.normalWS, inputData.viewDirectionWS);
-    }
+	}
 #endif
 
 #ifdef _ADDITIONAL_LIGHTS_VERTEX
-    color += inputData.vertexLighting * brdfData.diffuse;
+	color += inputData.vertexLighting * brdfData.diffuse;
 #endif
-    color += sphereAdd * toonyLighting;
-    color += emission * toonyLighting;
-    return half4(color, alpha);
+	color += sphereAdd * toonyLighting;
+	color += emission * toonyLighting;
+	return half4(color, alpha);
 }
 
 inline float3 TransformViewToProjection(float3 v) {
-	return mul((float3x3)UNITY_MATRIX_P, v);
+    return mul((float3x3)UNITY_MATRIX_P, v);
 }
 
 // called by PASS scripts to draw outline
 float4 TransformOutlineToHClipScreenSpace(float3 position, float3 normal, float outlineWidth)
 {
-	half _OutlineScaledMaxDistance = 10;
-	float4 nearUpperRight = mul(unity_CameraInvProjection, float4(1, 1, UNITY_NEAR_CLIP_VALUE, _ProjectionParams.y));
-	float aspect = abs(nearUpperRight.y / nearUpperRight.x);
-	float4 vertex = TransformObjectToHClip(position);
-	float3 viewNormal = mul((float3x3)UNITY_MATRIX_IT_MV, normal.xyz);
-	float3 clipNormal = TransformViewToProjection(viewNormal.xyz);
-	float2 projectedNormal = normalize(clipNormal.xy);
-	projectedNormal.x *= aspect;
-	vertex.xy += 0.01 * outlineWidth * projectedNormal.xy;
-	return vertex;
+    half _OutlineScaledMaxDistance = 10;
+    float4 nearUpperRight = mul(unity_CameraInvProjection, float4(1, 1, UNITY_NEAR_CLIP_VALUE, _ProjectionParams.y));
+    float aspect = abs(nearUpperRight.y / nearUpperRight.x);
+    float4 vertex = TransformObjectToHClip(position);
+    float3 viewNormal = mul((float3x3)UNITY_MATRIX_IT_MV, normal.xyz);
+    float3 clipNormal = TransformViewToProjection(viewNormal.xyz);
+    float2 projectedNormal = normalize(clipNormal.xy);
+    projectedNormal.x *= aspect;
+    vertex.xy += 0.01 * outlineWidth * projectedNormal.xy;
+    return vertex;
 }
 
 #endif
