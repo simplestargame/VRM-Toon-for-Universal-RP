@@ -303,37 +303,6 @@ namespace UnityEditor.Rendering.Universal
 
             keywords = new KeywordDescriptor[] { },
 
-            //// Required fields
-            //requiredAttributes = new List<string>()
-            //{
-            //    "Attributes.uv1", //needed for meta vertex position
-            //},
-
-            //// Required fields
-            //requiredVaryings = new List<string>()
-            //{
-            //    "Varyings.positionWS",
-            //    "Varyings.normalWS",
-            //},
-
-            //// Render State Overrides
-            //CullOverride = "Cull Front",
-            //ZWriteOverride = "ZWrite On",
-            //ZTestOverride = "ZTest Less",
-
-            //// Pass setup
-            //includes = new List<string>()
-            //{
-            //    "Packages/com.unity.render-pipelines.core/ShaderLibrary/Color.hlsl",
-            //    "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl",
-            //    "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl",
-            //},
-            //pragmas = new List<string>()
-            //{
-            //    "prefer_hlslcc gles",
-            //    "exclude_renderers d3d11_9x",
-            //    "target 2.0",
-            //},
         };
 #endregion
 
