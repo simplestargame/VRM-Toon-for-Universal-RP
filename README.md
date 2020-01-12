@@ -24,7 +24,7 @@ Universal RP template project
     UnityProjectDir/MoveFiles child folders name indicates move destination folder paths.
 
 1. Use "Shader Graphs/ToonShaderGraph" for your game!
-    1. The file location is VRM-Toon-for-Universal-RP\Assets\VRM-Toon-for-Universal-RP\ToonShaderGraph.shadergraph
+    1. The file location is VRM-Toon-for-Universal-RP\Assets\ToonShaderGraph\ToonShaderGraph.shadergraph
 
 # Check Example VRM Scene
 
