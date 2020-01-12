@@ -737,7 +737,6 @@ inline float3 TransformViewToProjection(float3 v) {
 // called by PASS scripts to draw outline
 float4 TransformOutlineToHClipScreenSpace(float3 position, float3 normal, float outlineWidth)
 {
-    half _OutlineScaledMaxDistance = 10;
     float4 nearUpperRight = mul(unity_CameraInvProjection, float4(1, 1, UNITY_NEAR_CLIP_VALUE, _ProjectionParams.y));
     float aspect = abs(nearUpperRight.y / nearUpperRight.x);
     float4 vertex = TransformObjectToHClip(position);
@@ -745,7 +744,7 @@ float4 TransformOutlineToHClipScreenSpace(float3 position, float3 normal, float 
     float3 clipNormal = TransformViewToProjection(viewNormal.xyz);
     float2 projectedNormal = normalize(clipNormal.xy);
     projectedNormal.x *= aspect;
-    vertex.xy += 0.05 * outlineWidth * projectedNormal.xy;
+    vertex.xy += 0.01 * outlineWidth * projectedNormal.xy;
     return vertex;
 }
 
