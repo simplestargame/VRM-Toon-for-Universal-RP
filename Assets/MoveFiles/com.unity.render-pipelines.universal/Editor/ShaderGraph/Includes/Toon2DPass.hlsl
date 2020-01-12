@@ -27,6 +27,7 @@ PackedVaryings vert(Attributes input)
     ZERO_INITIALIZE(VertexDescriptionInputs, vertexDescriptionInputs);
     VertexDescription vertexDescription = VertexDescriptionFunction(vertexDescriptionInputs);
     Varyings output = (Varyings)0;
+    output = BuildVaryings(input);
     output.positionCS = TransformOutlineToHClipScreenSpace(input.positionOS, input.normalOS, vertexDescription.OutlineWidth);
     PackedVaryings packedOutput = (PackedVaryings)0;
     packedOutput = PackVaryings(output);
