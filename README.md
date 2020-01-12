@@ -29,9 +29,17 @@ Universal RP template project
 # Check Example VRM Scene
 
 1. Find VRMMaterialImporter if you use [UniVRM package](https://github.com/vrm-c/UniVRM)  
-    Edit a line as follows.
+    Edit lines as follows.
  ```cs
+ // 1 select shader
+ var shaderName = item.shader;
+ ↓
  var shaderName = "Shader Graphs/ToonShaderGraph";//item.shader;
+
+ // 2 use geometry queue
+ material.renderQueue = item.renderQueue;
+ ↓
+ material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.GeometryLast < item.renderQueue ? (int)UnityEngine.Rendering.RenderQueue.GeometryLast : item.renderQueue;
  ```
 Load Result in SimpleViewer scene of [UniVRM Sample package](https://github.com/vrm-c/UniVRM).    
 ![warabeda](README/ShaderResult-2019-10-13134347.png)
