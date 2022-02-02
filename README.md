@@ -1,5 +1,10 @@
 # VRM Toon Shader Graph for Universal RP
 
+New URP Toon Shader -> https://github.com/simplestargame/SimpleURPToonLitOutlineExample
+
+This repository is old.  
+This shader does not support the latest UniVRM.
+
 [VRM - 3D Avatar File Format for VR -](https://vrm.dev/en/)
 
 ![onyankopon](README/examplescene1.jpg)  
